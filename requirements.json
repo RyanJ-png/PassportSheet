@@ -1,0 +1,83 @@
+{
+  "israel": {
+    "name": "Israel",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#FFFFFF"
+  },
+  "usa": {
+    "name": "USA",
+    "photo_width_mm": 51,
+    "photo_height_mm": 51,
+    "head_min_mm": 25,
+    "head_max_mm": 35,
+    "crown_to_top_mm": 9,
+    "background": "#FFFFFF"
+  },
+  "uk": {
+    "name": "United Kingdom",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 29,
+    "head_max_mm": 34,
+    "crown_to_top_mm": 5,
+    "background": "#EBEBEB"
+  },
+  "eu_schengen": {
+    "name": "EU / Schengen",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#FFFFFF"
+  },
+  "india": {
+    "name": "India",
+    "photo_width_mm": 51,
+    "photo_height_mm": 51,
+    "head_min_mm": 25,
+    "head_max_mm": 35,
+    "crown_to_top_mm": 9,
+    "background": "#FFFFFF"
+  },
+  "canada": {
+    "name": "Canada",
+    "photo_width_mm": 50,
+    "photo_height_mm": 70,
+    "head_min_mm": 31,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 10,
+    "background": "#FFFFFF"
+  },
+  "china": {
+    "name": "China",
+    "photo_width_mm": 33,
+    "photo_height_mm": 48,
+    "head_min_mm": 28,
+    "head_max_mm": 33,
+    "crown_to_top_mm": 5,
+    "background": "#FFFFFF"
+  },
+  "thailand": {
+    "name": "Thailand",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#FFFFFF"
+  },
+  "austria": {
+    "name": "Austria",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#EBEBEB"
+  }
+}

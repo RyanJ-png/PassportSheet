@@ -1,0 +1,63 @@
+# PassportSheet
+
+Desktop app (PySide6) that turns any photo into a printable sheet of compliant passport photos.
+
+Flow: load a photo → pick a country → the app auto-detects the face, levels it using the eye line, removes the background and replaces it with the country's required color, and auto-crops so the head height and crown-to-top margin match the country spec. You then fine-tune with drag / scroll-zoom / rotate against live guide overlays, and export a 300 DPI JPEG sheet (10x15 or 13x18 cm) with thin cut lines.
+
+## Setup
+
+```
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+python download_models.py       # fetches YuNet + u2net ONNX models into ./models
+python main.py
+```
+
+First run of a photo takes a few seconds (u2net segmentation). Switching countries afterwards is instant — the segmentation is cached and only the background color is re-composited.
+
+## Editing country specs
+
+`requirements.json` is plain data — add or tweak countries freely:
+
+```json
+"key": {
+  "name": "Display Name",
+  "photo_width_mm": 35, "photo_height_mm": 45,
+  "head_min_mm": 32, "head_max_mm": 36,
+  "crown_to_top_mm": 4,
+  "background": "#FFFFFF"
+}
+```
+
+`head_min/max_mm` is the allowed chin-to-crown band (shown as the green chin zone in the editor); `crown_to_top_mm` is where the cyan crown line sits. The bundled values are sensible defaults — verify against the official source for any country before client delivery, since embassies do revise these.
+
+## Building the Windows exe
+
+On the target Windows machine:
+
+```
+pip install pyinstaller
+python download_models.py
+pyinstaller PassportSheet.spec
+```
+
+Output lands in `dist/PassportSheet/`. Notes:
+
+- `console=False` is set, and `main.py` guards `sys.stdout`/`sys.stderr` against `None` before any imports — the exact crash class from PassportPro is prevented by design here.
+- The u2net model is bundled and `U2NET_HOME` points inside the bundle, so clients never trigger a first-run model download.
+- Expect a large dist folder (~400 MB): onnxruntime + u2net + Qt.
+
+## Project layout
+
+```
+main.py                 entry point, frozen-build guards
+app/specs.py            requirements.json loader + paper sizes
+app/processing.py       YuNet face detection, rembg segmentation, measurements
+app/fine_tune.py        interactive editor (drag/zoom/rotate + guide overlays)
+app/main_window.py      UI wiring, worker thread, export
+app/sheet.py            tiling + cut lines
+requirements.json       per-country photo specs (user-editable)
+download_models.py      one-time model fetch
+PassportSheet.spec      PyInstaller build config
+```
