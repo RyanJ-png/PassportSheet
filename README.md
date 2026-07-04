@@ -32,21 +32,6 @@ First run of a photo takes a few seconds (u2net segmentation). Switching countri
 
 `head_min/max_mm` is the allowed chin-to-crown band (shown as the green chin zone in the editor); `crown_to_top_mm` is where the cyan crown line sits. The bundled values are sensible defaults — verify against the official source for any country before client delivery, since embassies do revise these.
 
-## Building the Windows exe
-
-On the target Windows machine:
-
-```
-pip install pyinstaller
-python download_models.py
-pyinstaller PassportSheet.spec
-```
-
-Output lands in `dist/PassportSheet/`. Notes:
-
-- `console=False` is set, and `main.py` guards `sys.stdout`/`sys.stderr` against `None` before any imports — the exact crash class from PassportPro is prevented by design here.
-- The u2net model is bundled and `U2NET_HOME` points inside the bundle, so clients never trigger a first-run model download.
-- Expect a large dist folder (~400 MB): onnxruntime + u2net + Qt.
 
 ## Project layout
 
