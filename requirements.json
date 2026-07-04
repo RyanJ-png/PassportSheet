@@ -79,5 +79,14 @@
     "head_max_mm": 36,
     "crown_to_top_mm": 4,
     "background": "#EBEBEB"
+  },
+  "france": {
+    "name": "France",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#EBEBEB"
   }
 }
