@@ -72,14 +72,15 @@ class MainWindow(QMainWindow):
         # --- editor --------------------------------------------------------
         self.editor = PhotoEditor()
         self.editor.set_spec(self._current_spec())
+        self.editor.transformChanged.connect(self._sync_sliders)
 
         # --- bottom controls ------------------------------------------------
         self.btn_autofit = QPushButton("Auto-Fit")
         self.btn_autofit.clicked.connect(self._on_autofit)
 
         self.slider_zoom = QSlider(Qt.Orientation.Horizontal)
-        self.slider_zoom.setRange(2, 400)          # maps to 0.02 .. 4.0
-        self.slider_zoom.setValue(100)
+        self.slider_zoom.setRange(2, 5000)         # maps to 0.02 .. 50.0,
+        self.slider_zoom.setValue(100)             # same clamp as the editor
         self.slider_zoom.valueChanged.connect(self._on_zoom_slider)
 
         self.slider_rot = QSlider(Qt.Orientation.Horizontal)
@@ -158,6 +159,8 @@ class MainWindow(QMainWindow):
 
     def _on_process_failed(self, err: str):
         self.btn_load.setEnabled(True)
+        # A previously loaded photo is still in the editor — keep it editable.
+        self._set_editing_enabled(self._processed is not None)
         QMessageBox.critical(self, "Processing failed", err[-2000:])
         self.statusBar().showMessage("Processing failed.")
 
@@ -208,6 +211,16 @@ class MainWindow(QMainWindow):
 
     def _on_rot_slider(self, value: int):
         self.editor.set_rotation(value / 10.0)
+
+    # ----------------------------------------------------------------- close
+
+    def closeEvent(self, event):
+        # Don't destroy a running worker thread; let it finish quietly.
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.finished_ok.disconnect()
+            self._worker.failed.disconnect()
+            self._worker.wait()
+        super().closeEvent(event)
 
     # ---------------------------------------------------------------- export
 

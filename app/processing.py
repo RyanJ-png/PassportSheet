@@ -138,9 +138,13 @@ def process_photo(path: str) -> ProcessedPhoto:
         angle = math.degrees(math.atan2(left_eye[1] - right_eye[1],
                                         left_eye[0] - right_eye[0]))
         if abs(angle) > 1.0:
-            img = img.rotate(angle, resample=Image.BICUBIC,
-                             expand=False, fillcolor=(255, 255, 255))
-            det = _detect_face(img)
+            leveled = img.rotate(angle, resample=Image.BICUBIC,
+                                 expand=False, fillcolor=(255, 255, 255))
+            det_leveled = _detect_face(leveled)
+            # Keep the unleveled image if rotation makes the face undetectable,
+            # so autofit still works with the original detection.
+            if det_leveled is not None:
+                img, det = leveled, det_leveled
 
     cutout = _segment(img)
 

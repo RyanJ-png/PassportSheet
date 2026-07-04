@@ -8,7 +8,7 @@ compliance while adjusting. Export renders the scene rect at print DPI.
 from __future__ import annotations
 
 from PIL import Image
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QTransform
 from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsView
 
@@ -34,6 +34,10 @@ def qimage_to_pil(qimg: QImage) -> Image.Image:
 
 
 class PhotoEditor(QGraphicsView):
+    # Emitted when the user changes zoom from inside the view (mouse wheel),
+    # so external controls (sliders) can stay in sync.
+    transformChanged = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._scene = QGraphicsScene(self)
@@ -160,6 +164,7 @@ class PhotoEditor(QGraphicsView):
         steps = event.angleDelta().y() / 120.0
         anchor = self.mapToScene(event.position().toPoint())
         self.set_zoom(self._scale * (1.1 ** steps), anchor)
+        self.transformChanged.emit()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
