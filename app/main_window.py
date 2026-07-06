@@ -6,18 +6,20 @@ import traceback
 
 from PIL import Image
 from PySide6.QtCore import QPointF, Qt, QThread, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow,
-    QMessageBox, QPushButton, QSlider, QStatusBar, QVBoxLayout, QWidget,
+    QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+    QHBoxLayout, QLabel, QMainWindow, QMessageBox, QPushButton, QSlider,
+    QStatusBar, QVBoxLayout, QWidget,
 )
 
 from . import processing
-from .fine_tune import SCENE_PER_MM, PhotoEditor, qimage_to_pil
+from .fine_tune import SCENE_PER_MM, PhotoEditor, pil_to_qimage, qimage_to_pil
 from .sheet import best_layout, compose_sheet
 from .specs import PAPER_SIZES, CountrySpec, load_specs
 
 DPI = 300
+PHOTO_EXPORT_DPI = 600     # single-photo export; online portals want pixels
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 
 # Compliance readout tolerances. Head height is checked strictly against the
@@ -44,6 +46,29 @@ class ProcessWorker(QThread):
             self.finished_ok.emit(result)
         except Exception:
             self.failed.emit(traceback.format_exc())
+
+
+class SheetPreviewDialog(QDialog):
+    """Shows the composed sheet so the user can check it before saving."""
+
+    def __init__(self, sheet: Image.Image, count: int, paper_name: str,
+                 parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Sheet preview")
+        pix = QPixmap.fromImage(pil_to_qimage(sheet)).scaled(
+            560, 640, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+        preview = QLabel()
+        preview.setPixmap(pix)
+        info = QLabel(f"{count} photos on {paper_name} at {DPI} DPI")
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save
+                                   | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        lay = QVBoxLayout(self)
+        lay.addWidget(preview, alignment=Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(info, alignment=Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(buttons)
 
 
 class MainWindow(QMainWindow):
@@ -101,6 +126,9 @@ class MainWindow(QMainWindow):
         self.slider_rot.setValue(0)
         self.slider_rot.valueChanged.connect(self._on_rot_slider)
 
+        self.btn_export_photo = QPushButton("Export Photo…")
+        self.btn_export_photo.clicked.connect(self._on_export_photo)
+
         self.btn_export = QPushButton("Export Sheet…")
         self.btn_export.clicked.connect(self._on_export)
 
@@ -110,6 +138,7 @@ class MainWindow(QMainWindow):
         bottom.addWidget(self.slider_zoom, 1)
         bottom.addWidget(QLabel("Rotate"))
         bottom.addWidget(self.slider_rot, 1)
+        bottom.addWidget(self.btn_export_photo)
         bottom.addWidget(self.btn_export)
 
         # --- layout ----------------------------------------------------------
@@ -147,7 +176,7 @@ class MainWindow(QMainWindow):
 
     def _set_editing_enabled(self, enabled: bool) -> None:
         for w in (self.btn_autofit, self.slider_zoom, self.slider_rot,
-                  self.btn_export):
+                  self.btn_export_photo, self.btn_export):
             w.setEnabled(enabled)
 
     # ------------------------------------------------------------------ load
@@ -341,26 +370,57 @@ class MainWindow(QMainWindow):
             return
         spec = self._current_spec()
         paper = self._current_paper()
-        default_name = f"passport_{spec.key}_{paper.key}.jpg"
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Save printable sheet", default_name,
-            "JPEG image (*.jpg);;PNG image (*.png)")
-        if not path:
-            return
         try:
             photo = self.editor.render_photo(DPI)
             sheet, count = compose_sheet(
                 photo, paper.width_mm, paper.height_mm,
                 spec.photo_width_mm, spec.photo_height_mm, DPI)
-            ext = os.path.splitext(path)[1].lower()
-            if ext == ".png":
-                sheet.save(path, dpi=(DPI, DPI))
-            else:
-                if ext not in (".jpg", ".jpeg"):
-                    path += ".jpg"
-                sheet.save(path, quality=95, dpi=(DPI, DPI),
-                           subsampling=0)
-            self.statusBar().showMessage(
-                f"Saved {count} photos to {path}")
         except Exception as exc:
             QMessageBox.critical(self, "Export failed", str(exc))
+            return
+        dlg = SheetPreviewDialog(sheet, count, paper.name, self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        path = self._save_image(sheet, "Save printable sheet",
+                                f"passport_{spec.key}_{paper.key}.jpg", DPI)
+        if path:
+            self.statusBar().showMessage(f"Saved {count} photos to {path}")
+
+    def _on_export_photo(self):
+        if not self.editor.has_image():
+            return
+        spec = self._current_spec()
+        try:
+            photo = self.editor.render_photo(PHOTO_EXPORT_DPI)
+        except Exception as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+            return
+        path = self._save_image(photo, "Save single photo",
+                                f"passport_{spec.key}_photo.jpg",
+                                PHOTO_EXPORT_DPI)
+        if path:
+            self.statusBar().showMessage(
+                f"Saved single {photo.width}x{photo.height} px photo to {path}")
+
+    def _save_image(self, image: Image.Image, title: str,
+                    default_name: str, dpi: int) -> str | None:
+        """Ask for a filename and save; returns the path or None."""
+        path, chosen_filter = QFileDialog.getSaveFileName(
+            self, title, default_name,
+            "JPEG image (*.jpg);;PNG image (*.png)")
+        if not path:
+            return None
+        ext = os.path.splitext(path)[1].lower()
+        if ext not in (".jpg", ".jpeg", ".png"):
+            # No usable extension typed — honor the selected filter.
+            ext = ".png" if "PNG" in chosen_filter else ".jpg"
+            path += ext
+        try:
+            if ext == ".png":
+                image.save(path, dpi=(dpi, dpi))
+            else:
+                image.save(path, quality=95, dpi=(dpi, dpi), subsampling=0)
+        except Exception as exc:
+            QMessageBox.critical(self, "Save failed", str(exc))
+            return None
+        return path

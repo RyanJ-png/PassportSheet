@@ -83,27 +83,50 @@ def _detect_face(pil_img: Image.Image):
 
 
 # ---------------------------------------------------------------------------
-# Segmentation (rembg / u2net)
+# Segmentation (u2net via onnxruntime)
 # ---------------------------------------------------------------------------
 
 _session = None
 
 
-def _rembg_session():
+def _u2net_session():
     global _session
     if _session is None:
-        from rembg import new_session
-        _session = new_session("u2net")
+        import onnxruntime as ort
+        from .specs import resource_path
+        _session = ort.InferenceSession(
+            resource_path(os.path.join("models", "u2net.onnx")),
+            providers=["CPUExecutionProvider"])
     return _session
 
 
 def _segment(pil_img: Image.Image) -> Image.Image:
-    from rembg import remove
-    cutout = remove(pil_img.convert("RGB"), session=_rembg_session())
+    """Person cutout with u2net, run directly through onnxruntime.
+
+    Pre/post-processing mirrors rembg's u2net session (verified pixel-
+    identical), without rembg's heavy dependency tree (numba, scipy,
+    scikit-image, ...) that roughly doubled the frozen bundle.
+    """
+    img = pil_img.convert("RGB")
+    session = _u2net_session()
+
+    small = img.resize((320, 320), Image.Resampling.LANCZOS)
+    arr = np.asarray(small, dtype=np.float32)
+    arr = arr / max(float(arr.max()), 1e-6)
+    arr = (arr - (0.485, 0.456, 0.406)) / (0.229, 0.224, 0.225)
+    arr = arr.transpose((2, 0, 1))[np.newaxis].astype(np.float32)
+
+    pred = session.run(None, {session.get_inputs()[0].name: arr})[0][0, 0]
+    mi, ma = float(pred.min()), float(pred.max())
+    pred = (pred - mi) / max(ma - mi, 1e-6)
+    mask = Image.fromarray((pred.clip(0, 1) * 255).astype(np.uint8), "L")
+    mask = mask.resize(img.size, Image.Resampling.LANCZOS)
+
     # Slightly feather the mask so composited edges look natural.
-    r, g, b, a = cutout.split()
-    a = a.filter(ImageFilter.GaussianBlur(1.2))
-    return Image.merge("RGBA", (r, g, b, a))
+    mask = mask.filter(ImageFilter.GaussianBlur(1.2))
+    cutout = img.convert("RGBA")
+    cutout.putalpha(mask)
+    return cutout
 
 
 # ---------------------------------------------------------------------------

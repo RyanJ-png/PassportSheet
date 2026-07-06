@@ -11,13 +11,6 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-# Point rembg at the local models directory in dev and frozen runs alike, so
-# the u2net model fetched by download_models.py (or bundled by PyInstaller) is
-# used instead of silently downloading ~176 MB again to ~/.u2net.
-_base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-os.environ.setdefault("U2NET_HOME", os.path.join(_base, "models"))
-
-
 def main() -> int:
     from PySide6.QtWidgets import QApplication, QMessageBox
 

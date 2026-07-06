@@ -22,9 +22,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pyinstaller pytest
 
-      - name: Run tests
-        run: pytest -q
-
       - name: Cache ONNX models
         uses: actions/cache@v4
         with:
@@ -33,6 +30,11 @@ jobs:
 
       - name: Download models (checksum-verified)
         run: python download_models.py
+
+      # Models are fetched first so the segmentation test runs here too
+      # (it self-skips where onnxruntime or the model is unavailable).
+      - name: Run tests
+        run: pytest -q
 
       - name: Build with PyInstaller
         run: pyinstaller PassportSheet.spec --noconfirm

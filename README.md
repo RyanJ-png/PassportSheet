@@ -2,7 +2,7 @@
 
 Desktop app (PySide6) that turns any photo into a printable sheet of compliant passport photos.
 
-Flow: load a photo (file dialog, drag-and-drop, or Ctrl+V paste) → pick a country → the app auto-detects the face, levels it using the eye line, removes the background and replaces it with the country's required color, and auto-crops so the head height and crown-to-top margin match the country spec. You then fine-tune with drag / scroll-zoom / rotate against live guide overlays — a compliance readout in the status bar shows head height, crown gap, centering, and effective print resolution as you adjust — and export a 300 DPI JPEG sheet (10x15 cm, 13x18 cm, A4, or US Letter) with thin cut lines.
+Flow: load a photo (file dialog, drag-and-drop, or Ctrl+V paste) → pick a country → the app auto-detects the face, levels it using the eye line, removes the background and replaces it with the country's required color, and auto-crops so the head height and crown-to-top margin match the country spec. You then fine-tune with drag / scroll-zoom / rotate against live guide overlays — a compliance readout in the status bar shows head height, crown gap, centering, and effective print resolution as you adjust. Export a 300 DPI sheet (10x15 cm, 13x18 cm, A4, or US Letter) with cut lines — a preview dialog shows the exact printout before saving — or export a single 600 DPI photo for online applications.
 
 ## Setup
 
@@ -38,7 +38,7 @@ First run of a photo takes a few seconds (u2net segmentation). Switching countri
 ```
 main.py                 entry point, frozen-build guards
 app/specs.py            requirements.json loader + paper sizes
-app/processing.py       YuNet face detection, rembg segmentation, measurements
+app/processing.py       YuNet face detection, u2net segmentation, measurements
 app/fine_tune.py        interactive editor (drag/zoom/rotate + guide overlays)
 app/main_window.py      UI wiring, worker thread, export
 app/sheet.py            tiling + cut lines

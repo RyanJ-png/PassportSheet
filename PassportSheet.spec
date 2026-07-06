@@ -12,7 +12,7 @@ datas = [
 binaries = []
 hiddenimports = []
 
-for pkg in ("onnxruntime", "rembg", "pymatting", "numba", "llvmlite"):
+for pkg in ("onnxruntime",):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
