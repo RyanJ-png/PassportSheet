@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
 
@@ -83,4 +84,9 @@ def _validate(spec: CountrySpec) -> None:
     if spec.head_max_mm + spec.crown_to_top_mm > spec.photo_height_mm:
         raise ValueError(
             f"{spec.key}: head band + crown_to_top exceeds photo height"
+        )
+    if not re.fullmatch(r"#?[0-9a-fA-F]{6}", spec.background):
+        raise ValueError(
+            f'{spec.key}: background must be a "#RRGGBB" hex color, '
+            f"got {spec.background!r}"
         )

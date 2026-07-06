@@ -11,19 +11,29 @@ if sys.stdout is None:
 if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
-# In a frozen build, point rembg at the bundled u2net model so it never tries
-# to download on the client's machine.
-if getattr(sys, "frozen", False):
-    os.environ.setdefault("U2NET_HOME", os.path.join(sys._MEIPASS, "models"))
+# Point rembg at the local models directory in dev and frozen runs alike, so
+# the u2net model fetched by download_models.py (or bundled by PyInstaller) is
+# used instead of silently downloading ~176 MB again to ~/.u2net.
+_base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+os.environ.setdefault("U2NET_HOME", os.path.join(_base, "models"))
 
 
 def main() -> int:
-    from PySide6.QtWidgets import QApplication
-    from app.main_window import MainWindow
+    from PySide6.QtWidgets import QApplication, QMessageBox
 
     app = QApplication(sys.argv)
     app.setApplicationName("PassportSheet")
-    win = MainWindow()
+    try:
+        from app.main_window import MainWindow
+        win = MainWindow()
+    except Exception:
+        import traceback
+        # stderr goes to devnull in windowed builds, so a dialog is the only
+        # way to learn why startup failed (usually an edited requirements.json).
+        QMessageBox.critical(
+            None, "PassportSheet failed to start",
+            traceback.format_exc()[-2000:])
+        return 1
     win.show()
     return app.exec()
 
