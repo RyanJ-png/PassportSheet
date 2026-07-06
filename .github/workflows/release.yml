@@ -1,0 +1,49 @@
+name: Release
+
+# Push a tag like v1.1.0 and this builds the Windows bundle, zips it, and
+# attaches it to a GitHub release — no local build needed.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller pytest
+
+      - name: Run tests
+        run: pytest -q
+
+      - name: Cache ONNX models
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: models-${{ hashFiles('download_models.py') }}
+
+      - name: Download models (checksum-verified)
+        run: python download_models.py
+
+      - name: Build with PyInstaller
+        run: pyinstaller PassportSheet.spec --noconfirm
+
+      - name: Package
+        run: |
+          Copy-Item LICENSE, README.md dist/PassportSheet/
+          Compress-Archive -Path dist/PassportSheet -DestinationPath "PassportSheet-${{ github.ref_name }}-win64.zip"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PassportSheet-*.zip
+          generate_release_notes: true

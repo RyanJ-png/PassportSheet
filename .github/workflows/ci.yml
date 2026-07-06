@@ -1,0 +1,19 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      # The test suite covers the pure-Python modules only, so it doesn't
+      # need Qt, OpenCV, or the ONNX models.
+      - run: pip install numpy Pillow pytest
+      - run: pytest -q

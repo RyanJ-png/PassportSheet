@@ -34,8 +34,8 @@ def qimage_to_pil(qimg: QImage) -> Image.Image:
 
 
 class PhotoEditor(QGraphicsView):
-    # Emitted when the user changes zoom from inside the view (mouse wheel),
-    # so external controls (sliders) can stay in sync.
+    # Emitted whenever the photo's placement changes (zoom, rotation, drag,
+    # auto-fit, new image), so sliders and the compliance readout stay in sync.
     transformChanged = Signal()
 
     def __init__(self, parent=None):
@@ -74,6 +74,7 @@ class PhotoEditor(QGraphicsView):
             self._item.setPixmap(pix)
         self._item.setTransformOriginPoint(pix.width() / 2, pix.height() / 2)
         self._apply_transform()
+        self.transformChanged.emit()
 
     def has_image(self) -> bool:
         return self._item is not None
@@ -95,6 +96,12 @@ class PhotoEditor(QGraphicsView):
         delta = scene_pt - current
         self._item.setPos(self._item.pos() + delta)
 
+    def map_image_point(self, img_pt: QPointF) -> QPointF | None:
+        """Map a point in image pixel coordinates to scene coordinates."""
+        if self._item is None:
+            return None
+        return self._item.mapToScene(img_pt)
+
     def auto_fit(self, fit: AutoFit) -> None:
         if self._item is None or self._spec is None or fit.head_px <= 0:
             return
@@ -107,6 +114,7 @@ class PhotoEditor(QGraphicsView):
                               spec.crown_to_top_mm * SCENE_PER_MM)
         self._pos_to_map(crown_img, crown_scene)
         self.viewport().update()
+        self.transformChanged.emit()
 
     def set_zoom(self, factor: float, anchor_scene: QPointF | None = None) -> None:
         if self._item is None:
@@ -119,6 +127,7 @@ class PhotoEditor(QGraphicsView):
         self._apply_transform()
         self._pos_to_map(img_pt, anchor_scene)
         self.viewport().update()
+        self.transformChanged.emit()
 
     def zoom(self) -> float:
         return self._scale
@@ -132,6 +141,7 @@ class PhotoEditor(QGraphicsView):
         self._apply_transform()
         self._pos_to_map(img_pt, center)
         self.viewport().update()
+        self.transformChanged.emit()
 
     def rotation(self) -> float:
         return self._rotation
@@ -151,6 +161,7 @@ class PhotoEditor(QGraphicsView):
             self._item.setPos(self._item.pos() + (pos - self._last_pos))
             self._last_pos = pos
             self.viewport().update()
+            self.transformChanged.emit()
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
@@ -163,8 +174,7 @@ class PhotoEditor(QGraphicsView):
             return
         steps = event.angleDelta().y() / 120.0
         anchor = self.mapToScene(event.position().toPoint())
-        self.set_zoom(self._scale * (1.1 ** steps), anchor)
-        self.transformChanged.emit()
+        self.set_zoom(self._scale * (1.1 ** steps), anchor)  # emits transformChanged
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

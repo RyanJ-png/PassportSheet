@@ -88,5 +88,41 @@
     "head_max_mm": 36,
     "crown_to_top_mm": 4,
     "background": "#EBEBEB"
+  },
+  "germany": {
+    "name": "Germany",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#EBEBEB"
+  },
+  "japan": {
+    "name": "Japan",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#FFFFFF"
+  },
+  "australia": {
+    "name": "Australia",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#EBEBEB"
+  },
+  "philippines": {
+    "name": "Philippines",
+    "photo_width_mm": 35,
+    "photo_height_mm": 45,
+    "head_min_mm": 32,
+    "head_max_mm": 36,
+    "crown_to_top_mm": 4,
+    "background": "#FFFFFF"
   }
 }

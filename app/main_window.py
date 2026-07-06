@@ -4,31 +4,43 @@ from __future__ import annotations
 import os
 import traceback
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PIL import Image
+from PySide6.QtCore import QPointF, Qt, QThread, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-    QPushButton, QSlider, QStatusBar, QVBoxLayout, QWidget,
+    QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow,
+    QMessageBox, QPushButton, QSlider, QStatusBar, QVBoxLayout, QWidget,
 )
 
 from . import processing
-from .fine_tune import PhotoEditor
+from .fine_tune import SCENE_PER_MM, PhotoEditor, qimage_to_pil
 from .sheet import best_layout, compose_sheet
 from .specs import PAPER_SIZES, CountrySpec, load_specs
 
 DPI = 300
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
+
+# Compliance readout tolerances. Head height is checked strictly against the
+# spec band; these cover the measurements specs don't give a range for.
+CROWN_TOL_MM = 1.5
+CENTER_TOL_MM = 2.0
+MIN_EFFECTIVE_DPI = 200
 
 
 class ProcessWorker(QThread):
     finished_ok = Signal(object)   # ProcessedPhoto
     failed = Signal(str)
 
-    def __init__(self, path: str, parent=None):
+    def __init__(self, source: str | Image.Image, parent=None):
         super().__init__(parent)
-        self._path = path
+        self._source = source
 
     def run(self):
         try:
-            result = processing.process_photo(self._path)
+            if isinstance(self._source, str):
+                result = processing.process_photo(self._source)
+            else:
+                result = processing.process_image(self._source)
             self.finished_ok.emit(result)
         except Exception:
             self.failed.emit(traceback.format_exc())
@@ -73,6 +85,7 @@ class MainWindow(QMainWindow):
         self.editor = PhotoEditor()
         self.editor.set_spec(self._current_spec())
         self.editor.transformChanged.connect(self._sync_sliders)
+        self.editor.transformChanged.connect(self._update_compliance)
 
         # --- bottom controls ------------------------------------------------
         self.btn_autofit = QPushButton("Auto-Fit")
@@ -108,10 +121,20 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.setStatusBar(QStatusBar())
 
+        # Live spec-compliance readout, always visible on the right.
+        self.lbl_compliance = QLabel()
+        self.lbl_compliance.setTextFormat(Qt.TextFormat.RichText)
+        self.statusBar().addPermanentWidget(self.lbl_compliance)
+
+        self.setAcceptDrops(True)
+        QShortcut(QKeySequence.StandardKey.Paste, self,
+                  activated=self._on_paste)
+
         self._set_editing_enabled(False)
         self._update_capacity_label()
         self.statusBar().showMessage(
-            "Load a photo to begin. Drag to move, scroll to zoom.")
+            "Load, drop, or paste (Ctrl+V) a photo to begin. "
+            "Drag to move, scroll to zoom.")
 
     # ------------------------------------------------------------------ state
 
@@ -133,13 +156,18 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(
             self, "Select photo", "",
             "Images (*.jpg *.jpeg *.png *.bmp *.webp *.tif *.tiff)")
-        if not path:
+        if path:
+            self._start_processing(path)
+
+    def _start_processing(self, source: str | Image.Image):
+        if self._worker is not None and self._worker.isRunning():
+            self.statusBar().showMessage("Still processing the previous photo…")
             return
         self.btn_load.setEnabled(False)
         self._set_editing_enabled(False)
         self.statusBar().showMessage(
             "Processing photo (face detection + background removal)…")
-        self._worker = ProcessWorker(path)
+        self._worker = ProcessWorker(source)
         self._worker.finished_ok.connect(self._on_processed)
         self._worker.failed.connect(self._on_process_failed)
         self._worker.start()
@@ -149,13 +177,53 @@ class MainWindow(QMainWindow):
         self._processed = result
         self._refresh_composite()
         self._set_editing_enabled(True)
-        if result.autofit is not None:
-            self._on_autofit()
+        if result.faces_found > 1:
+            self.statusBar().showMessage(
+                f"Warning: {result.faces_found} faces detected — everyone in "
+                "the photo will appear on the printed sheet.")
+        elif result.autofit is not None:
             self.statusBar().showMessage(
                 "Auto-fitted. Drag / zoom / rotate to fine-tune, then export.")
         else:
             self.statusBar().showMessage(
                 "No face detected — position the photo manually.")
+        if result.autofit is not None:
+            self._on_autofit()
+        self._update_compliance()
+
+    # -------------------------------------------------------- drop and paste
+
+    @staticmethod
+    def _dropped_image_path(mime) -> str | None:
+        urls = mime.urls()
+        if len(urls) == 1 and urls[0].isLocalFile():
+            path = urls[0].toLocalFile()
+            if os.path.splitext(path)[1].lower() in IMAGE_EXTS:
+                return path
+        return None
+
+    def dragEnterEvent(self, event):
+        if self._dropped_image_path(event.mimeData()) is not None:
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        path = self._dropped_image_path(event.mimeData())
+        if path is not None:
+            event.acceptProposedAction()
+            self._start_processing(path)
+
+    def _on_paste(self):
+        mime = QApplication.clipboard().mimeData()
+        path = self._dropped_image_path(mime)
+        if path is not None:
+            self._start_processing(path)
+            return
+        if mime.hasImage():
+            qimg = QApplication.clipboard().image()
+            if not qimg.isNull():
+                self._start_processing(qimage_to_pil(qimg))
+                return
+        self.statusBar().showMessage("Clipboard has no image.")
 
     def _on_process_failed(self, err: str):
         self.btn_load.setEnabled(True)
@@ -182,6 +250,7 @@ class MainWindow(QMainWindow):
             if self._processed.autofit is not None:
                 self._on_autofit()
         self._update_capacity_label()
+        self._update_compliance()
 
     def _update_capacity_label(self):
         spec = self._current_spec()
@@ -211,6 +280,49 @@ class MainWindow(QMainWindow):
 
     def _on_rot_slider(self, value: int):
         self.editor.set_rotation(value / 10.0)
+
+    # ------------------------------------------------------------ compliance
+
+    def _update_compliance(self):
+        """Live pass/fail readout of the current crop against the spec."""
+        if self._processed is None or not self.editor.has_image():
+            self.lbl_compliance.setText("")
+            return
+        spec = self._current_spec()
+        ok = '<span style="color:#2e7d32">{} ✓</span>'
+        bad = '<span style="color:#c62828">{} ✗</span>'
+        warn = '<span style="color:#b26a00">{}</span>'
+        parts: list[str] = []
+
+        if self._processed.faces_found > 1:
+            parts.append(bad.format(f"{self._processed.faces_found} faces"))
+
+        af = self._processed.autofit
+        if af is None:
+            parts.append(warn.format("no face — check size manually"))
+        else:
+            crown = self.editor.map_image_point(QPointF(af.face_cx, af.crown_y))
+            chin = self.editor.map_image_point(QPointF(af.face_cx, af.chin_y))
+            head_mm = (chin.y() - crown.y()) / SCENE_PER_MM
+            gap_mm = crown.y() / SCENE_PER_MM
+            center_off_mm = abs((crown.x() + chin.x()) / 2.0 / SCENE_PER_MM
+                                - spec.photo_width_mm / 2.0)
+            head_ok = spec.head_min_mm <= head_mm <= spec.head_max_mm
+            parts.append((ok if head_ok else bad).format(
+                f"head {head_mm:.1f} mm"))
+            gap_ok = abs(gap_mm - spec.crown_to_top_mm) <= CROWN_TOL_MM
+            parts.append((ok if gap_ok else bad).format(
+                f"crown gap {gap_mm:.1f} mm"))
+            parts.append((ok if center_off_mm <= CENTER_TOL_MM else bad)
+                         .format("centered"))
+
+        # One source pixel should cover at least ~1 output pixel at print DPI.
+        out_px_per_img_px = self.editor.zoom() * (DPI / 25.4) / SCENE_PER_MM
+        if out_px_per_img_px > DPI / MIN_EFFECTIVE_DPI:
+            parts.append(warn.format(
+                f"low res (~{DPI / out_px_per_img_px:.0f} DPI print)"))
+
+        self.lbl_compliance.setText(" &nbsp;·&nbsp; ".join(parts))
 
     # ----------------------------------------------------------------- close
 

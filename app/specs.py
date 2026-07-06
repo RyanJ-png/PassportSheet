@@ -44,6 +44,8 @@ class PaperSize:
 PAPER_SIZES: list[PaperSize] = [
     PaperSize("10x15", '10x15 cm (4x6")', 100.0, 150.0),
     PaperSize("13x18", '13x18 cm (5x7")', 130.0, 180.0),
+    PaperSize("a4", "A4 (21x29.7 cm)", 210.0, 297.0),
+    PaperSize("letter", 'US Letter (8.5x11")', 215.9, 279.4),
 ]
 
 

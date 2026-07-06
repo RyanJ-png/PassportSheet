@@ -36,6 +36,7 @@ class AutoFit:
 class ProcessedPhoto:
     cutout: Image.Image          # RGBA, person on transparent bg, leveled
     autofit: AutoFit | None      # None if no face was detected
+    faces_found: int = 0         # everyone detected — passports want exactly 1
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +52,7 @@ def _yunet_model_path() -> str:
 
 
 def _detect_face(pil_img: Image.Image):
-    """Return (box, right_eye, left_eye) in image px, or None."""
+    """Return (box, right_eye, left_eye, n_faces) in image px, or None."""
     import cv2
 
     rgb = np.asarray(pil_img.convert("RGB"))
@@ -78,7 +79,7 @@ def _detect_face(pil_img: Image.Image):
     x, y, bw, bh = (face[0] * inv, face[1] * inv, face[2] * inv, face[3] * inv)
     right_eye = (face[4] * inv, face[5] * inv)
     left_eye = (face[6] * inv, face[7] * inv)
-    return (x, y, bw, bh), right_eye, left_eye
+    return (x, y, bw, bh), right_eye, left_eye, len(faces)
 
 
 # ---------------------------------------------------------------------------
@@ -130,11 +131,16 @@ def _crown_from_mask(cutout: Image.Image, face_x0: float, face_x1: float) -> flo
 def process_photo(path: str) -> ProcessedPhoto:
     img = Image.open(path)
     img = ImageOps.exif_transpose(img).convert("RGB")
+    return process_image(img)
+
+
+def process_image(img: Image.Image) -> ProcessedPhoto:
+    img = img.convert("RGB")
 
     # Level the image using the eye line, then re-detect on the leveled image.
     det = _detect_face(img)
     if det is not None:
-        _, right_eye, left_eye = det
+        _, right_eye, left_eye, _ = det
         angle = math.degrees(math.atan2(left_eye[1] - right_eye[1],
                                         left_eye[0] - right_eye[0]))
         if abs(angle) > 1.0:
@@ -149,15 +155,17 @@ def process_photo(path: str) -> ProcessedPhoto:
     cutout = _segment(img)
 
     autofit = None
+    faces_found = 0
     if det is not None:
-        (x, y, bw, bh), _, _ = det
+        (x, y, bw, bh), _, _, faces_found = det
         crown = _crown_from_mask(cutout, x, x + bw)
         if crown is None or crown >= y + bh:
             crown = y  # fall back to the face box top
         chin = y + bh
         autofit = AutoFit(face_cx=x + bw / 2.0, crown_y=crown, chin_y=chin)
 
-    return ProcessedPhoto(cutout=cutout, autofit=autofit)
+    return ProcessedPhoto(cutout=cutout, autofit=autofit,
+                          faces_found=faces_found)
 
 
 def composite_on_background(cutout: Image.Image,

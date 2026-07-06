@@ -2,7 +2,7 @@
 
 Desktop app (PySide6) that turns any photo into a printable sheet of compliant passport photos.
 
-Flow: load a photo → pick a country → the app auto-detects the face, levels it using the eye line, removes the background and replaces it with the country's required color, and auto-crops so the head height and crown-to-top margin match the country spec. You then fine-tune with drag / scroll-zoom / rotate against live guide overlays, and export a 300 DPI JPEG sheet (10x15 or 13x18 cm) with thin cut lines.
+Flow: load a photo (file dialog, drag-and-drop, or Ctrl+V paste) → pick a country → the app auto-detects the face, levels it using the eye line, removes the background and replaces it with the country's required color, and auto-crops so the head height and crown-to-top margin match the country spec. You then fine-tune with drag / scroll-zoom / rotate against live guide overlays — a compliance readout in the status bar shows head height, crown gap, centering, and effective print resolution as you adjust — and export a 300 DPI JPEG sheet (10x15 cm, 13x18 cm, A4, or US Letter) with thin cut lines.
 
 ## Setup
 
@@ -43,6 +43,18 @@ app/fine_tune.py        interactive editor (drag/zoom/rotate + guide overlays)
 app/main_window.py      UI wiring, worker thread, export
 app/sheet.py            tiling + cut lines
 requirements.json       per-country photo specs (user-editable)
-download_models.py      one-time model fetch
+download_models.py      one-time model fetch (checksum-verified)
 PassportSheet.spec      PyInstaller build config
+tests/                  pytest suite (pure functions — no Qt or models needed)
 ```
+
+## Development
+
+```
+pip install pytest
+pytest
+```
+
+Releases are built by GitHub Actions: push a tag like `v1.2.0` and the
+workflow tests, builds the Windows bundle, and attaches the zip to a GitHub
+release automatically.
