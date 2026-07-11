@@ -345,6 +345,17 @@ class MainWindow(QMainWindow):
             parts.append((ok if center_off_mm <= CENTER_TOL_MM else bad)
                          .format("centered"))
 
+        # The frame reaching past the image is only a defect where the person
+        # touches that image edge; past background edges the fill is seamless.
+        exposed = self.editor.exposed_edges()
+        if exposed is not None:
+            touched = self._processed.person_edges
+            cut = sorted(e for e in exposed if getattr(touched, e))
+            if cut:
+                parts.append(bad.format("person cut at " + "/".join(cut)))
+            else:
+                parts.append(ok.format("fills frame"))
+
         # One source pixel should cover at least ~1 output pixel at print DPI.
         out_px_per_img_px = self.editor.zoom() * (DPI / 25.4) / SCENE_PER_MM
         if out_px_per_img_px > DPI / MIN_EFFECTIVE_DPI:

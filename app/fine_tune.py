@@ -102,6 +102,29 @@ class PhotoEditor(QGraphicsView):
             return None
         return self._item.mapToScene(img_pt)
 
+    def exposed_edges(self) -> set[str] | None:
+        """Image edges the output frame extends past ('top', 'right',
+        'bottom', 'left'). Both shapes are convex, so it suffices to test
+        the frame's corners in image coordinates."""
+        if self._item is None:
+            return None
+        w = self._item.pixmap().width()
+        h = self._item.pixmap().height()
+        sr = self._scene.sceneRect()
+        corners = [self._item.mapFromScene(c)
+                   for c in (sr.topLeft(), sr.topRight(),
+                             sr.bottomLeft(), sr.bottomRight())]
+        exposed = set()
+        if any(p.y() < -0.5 for p in corners):
+            exposed.add("top")
+        if any(p.x() > w + 0.5 for p in corners):
+            exposed.add("right")
+        if any(p.y() > h + 0.5 for p in corners):
+            exposed.add("bottom")
+        if any(p.x() < -0.5 for p in corners):
+            exposed.add("left")
+        return exposed
+
     def auto_fit(self, fit: AutoFit) -> None:
         if self._item is None or self._spec is None or fit.head_px <= 0:
             return

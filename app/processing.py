@@ -32,11 +32,23 @@ class AutoFit:
         return self.chin_y - self.crown_y
 
 
+@dataclass(frozen=True)
+class EdgeContact:
+    """Which image edges the person's opaque mask touches. If the output
+    frame extends past a touched edge, the person is visibly cut off; past
+    an untouched edge only seamless background is exposed."""
+    top: bool = False
+    right: bool = False
+    bottom: bool = False
+    left: bool = False
+
+
 @dataclass
 class ProcessedPhoto:
     cutout: Image.Image          # RGBA, person on transparent bg, leveled
     autofit: AutoFit | None      # None if no face was detected
     faces_found: int = 0         # everyone detected — passports want exactly 1
+    person_edges: EdgeContact = EdgeContact()
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +142,35 @@ def _segment(pil_img: Image.Image) -> Image.Image:
 
 
 # ---------------------------------------------------------------------------
+# Canvas extension
+# ---------------------------------------------------------------------------
+
+# Tall/wide photo frames (Canada 50x70, USA 51x51) often extend past the
+# edges of a tightly cropped source photo once the head is placed per spec.
+# Pad the cutout by replicating its edge pixels so clothing continues to the
+# frame edge instead of ending in a hard line with background below
+# ("floating portrait"). Transparent edges replicate as transparent, so the
+# padding is invisible unless the frame actually reaches it. The top is never
+# padded — heads must not be smeared upward.
+_PAD_BOTTOM_FRAC = 0.75
+_PAD_SIDE_FRAC = 0.35
+
+
+def _extend_canvas(cutout: Image.Image) -> tuple[Image.Image, int]:
+    """Return (padded cutout, left padding px)."""
+    pad_b = int(cutout.height * _PAD_BOTTOM_FRAC)
+    pad_s = int(cutout.width * _PAD_SIDE_FRAC)
+    arr = np.pad(np.asarray(cutout), ((0, pad_b), (pad_s, pad_s), (0, 0)),
+                 mode="edge")
+    padded = Image.fromarray(arr, "RGBA")
+    # Blur the replicated regions so they read as out-of-focus continuation
+    # rather than streaks, then restore the original pixels on top.
+    soft = padded.filter(ImageFilter.GaussianBlur(12))
+    soft.paste(cutout, (pad_s, 0))
+    return soft, pad_s
+
+
+# ---------------------------------------------------------------------------
 # Measurements
 # ---------------------------------------------------------------------------
 
@@ -176,11 +217,21 @@ def process_image(img: Image.Image) -> ProcessedPhoto:
                 img, det = leveled, det_leveled
 
     cutout = _segment(img)
+    cutout, pad_left = _extend_canvas(cutout)
+
+    alpha = np.asarray(cutout.getchannel("A"))
+    person_edges = EdgeContact(
+        top=bool((alpha[0] > 128).any()),
+        right=bool((alpha[:, -1] > 128).any()),
+        bottom=bool((alpha[-1] > 128).any()),
+        left=bool((alpha[:, 0] > 128).any()),
+    )
 
     autofit = None
     faces_found = 0
     if det is not None:
         (x, y, bw, bh), _, _, faces_found = det
+        x += pad_left  # detection ran on the unpadded image
         crown = _crown_from_mask(cutout, x, x + bw)
         if crown is None or crown >= y + bh:
             crown = y  # fall back to the face box top
@@ -188,7 +239,8 @@ def process_image(img: Image.Image) -> ProcessedPhoto:
         autofit = AutoFit(face_cx=x + bw / 2.0, crown_y=crown, chin_y=chin)
 
     return ProcessedPhoto(cutout=cutout, autofit=autofit,
-                          faces_found=faces_found)
+                          faces_found=faces_found,
+                          person_edges=person_edges)
 
 
 def composite_on_background(cutout: Image.Image,
