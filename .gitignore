@@ -6,3 +6,8 @@ build/
 dist/
 *.spec.bak
 .idea/
+# graphify knowledge graph (regenerable: graphify update .)
+graphify-out/
+
+# personal Claude Code settings (machine-specific hook paths)
+.claude/settings.local.json
