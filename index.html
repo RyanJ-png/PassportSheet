@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b1016">
+<title>PassportSheet, free passport photos on Windows</title>
+<meta name="description" content="Open-source Windows app that turns any photo into a compliant, print-ready passport photo sheet. 14 countries, live compliance checks, fully offline.">
+<meta property="og:title" content="PassportSheet">
+<meta property="og:description" content="Turn any photo into a compliant, print-ready passport photo sheet. Free, open source, offline.">
+<meta property="og:image" content="https://ryanj-png.github.io/PassportSheet/assets/editor.webp">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="assets/icon.png">
+<style>
+/* Shape system: interactive elements are pills, surfaces are 14px. */
+@font-face {
+  font-family: "Outfit";
+  src: url("fonts/outfit-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-206F, U+2190-21BB;
+}
+@font-face {
+  font-family: "Outfit";
+  src: url("fonts/outfit-latin-ext.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+1E00-1EFF;
+}
+:root {
+  --bg: #0b1016;
+  --bg-2: #10171f;
+  --bg-3: #15202b;
+  --line: rgba(255, 255, 255, .09);
+  --text: #e9eef3;
+  --muted: #9fadba;
+  --accent: #00d0ff;
+  --accent-ink: #04222e;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; margin: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-weight: 400;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--accent); text-decoration: none; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+
+/* ---- nav ---- */
+header {
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(10px);
+}
+.nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { display: flex; align-items: center; gap: 10px; color: var(--text); font-weight: 600; font-size: 1.06rem; }
+.brand img { width: 28px; height: 28px; }
+.nav a.gh { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 500; transition: color .2s; }
+.nav a.gh:hover { color: var(--text); }
+.nav a.gh svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* ---- buttons: pill-shaped interactives ---- */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 26px; border-radius: 999px;
+  font: inherit; font-weight: 600; font-size: 1rem;
+  transition: transform .15s ease, filter .2s ease, background .2s ease;
+}
+.btn:active { transform: scale(.98); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); }
+.btn-primary:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.btn-ghost { border: 1px solid var(--line); color: var(--text); }
+.btn-ghost:hover { background: var(--bg-3); transform: translateY(-1px); }
+.btn-ghost svg { width: 17px; height: 17px; fill: currentColor; }
+
+/* ---- hero ---- */
+.hero { padding-top: 72px; padding-bottom: 88px; }
+.hero-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; align-items: center; }
+h1 {
+  font-size: clamp(2.5rem, 5.4vw, 3.9rem);
+  font-weight: 700; letter-spacing: -.03em; line-height: 1.04;
+}
+h1 .tick { color: var(--accent); }
+.hero p.sub { margin: 20px 0 32px; font-size: 1.14rem; color: var(--muted); max-width: 42ch; }
+.cta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+.shot {
+  border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  background: var(--bg-2);
+  box-shadow: 0 24px 70px -24px rgba(0, 208, 255, .14), 0 30px 60px -30px rgba(0, 0, 0, .7);
+}
+
+/* ---- sections ---- */
+section { padding: 88px 0; }
+section + section { border-top: 1px solid var(--line); }
+h2 {
+  font-size: clamp(1.7rem, 3.2vw, 2.3rem);
+  font-weight: 700; letter-spacing: -.02em; line-height: 1.15;
+}
+.lede { margin-top: 14px; color: var(--muted); max-width: 58ch; }
+
+/* how it works: split with stacked steps */
+.how { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 56px; }
+.steps { display: grid; gap: 0; }
+.step { display: grid; grid-template-columns: 56px 1fr; gap: 18px; padding: 26px 0; }
+.step + .step { border-top: 1px solid var(--line); }
+.step .n {
+  font-size: 1.9rem; font-weight: 700; color: var(--accent);
+  font-variant-numeric: tabular-nums; line-height: 1.1;
+}
+.step h3 { font-size: 1.14rem; font-weight: 600; margin-bottom: 6px; }
+.step p { color: var(--muted); }
+
+/* compliance exhibit */
+.strip {
+  margin-top: 40px; border: 1px solid var(--line); border-radius: 14px;
+  background: var(--bg-2); padding: 26px 30px; overflow-x: auto;
+}
+.strip img { min-width: 620px; margin: 0 auto; }
+
+/* bento: 3 cells (1 tall + 2 stacked) */
+.bento { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 22px; margin-top: 44px; }
+.cell { border: 1px solid var(--line); border-radius: 14px; background: var(--bg-2); }
+.cell-img { display: flex; flex-direction: column; overflow: hidden; }
+.cell-img img { height: 480px; width: 100%; object-fit: cover; object-position: center top; }
+.cell-img figcaption { padding: 20px 24px; border-top: 1px solid var(--line); }
+.col { display: grid; gap: 22px; align-content: stretch; }
+.cell-text { padding: 30px 32px; display: flex; flex-direction: column; justify-content: center; }
+.cell-tint {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(0, 208, 255, .13), transparent 55%),
+    var(--bg-2);
+}
+.cell h3 { font-size: 1.22rem; font-weight: 600; margin-bottom: 8px; }
+.cell p { color: var(--muted); }
+
+/* countries */
+.pills { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px; }
+.pill {
+  padding: 8px 18px; border: 1px solid var(--line); border-radius: 999px;
+  color: var(--text); font-weight: 500; font-size: .97rem; background: var(--bg-2);
+}
+.note { margin-top: 26px; color: var(--muted); max-width: 62ch; }
+.note code {
+  font-family: Consolas, "Cascadia Mono", monospace; font-size: .92em;
+  background: var(--bg-3); border: 1px solid var(--line);
+  border-radius: 6px; padding: 1px 7px;
+}
+
+/* closing */
+.closing { text-align: center; }
+.closing h2 { margin-bottom: 28px; }
+.closing .req { margin-top: 22px; color: var(--muted); font-size: .98rem; }
+
+/* footer */
+footer { border-top: 1px solid var(--line); padding: 34px 0 44px; }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; }
+.foot, .foot a { color: var(--muted); font-size: .95rem; }
+.foot a:hover { color: var(--text); }
+.foot nav { display: flex; gap: 26px; }
+
+/* ---- motion: only when JS runs and motion is allowed ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .js .reveal { opacity: 0; transform: translateY(16px); transition: opacity .6s cubic-bezier(.16,1,.3,1), transform .6s cubic-bezier(.16,1,.3,1); }
+  .js .reveal.in { opacity: 1; transform: none; }
+  .js .hero .reveal:nth-child(2) { transition-delay: .08s; }
+}
+
+/* ---- mobile ---- */
+@media (max-width: 900px) {
+  .hero { padding-top: 48px; padding-bottom: 64px; }
+  .hero-grid, .how, .bento { grid-template-columns: 1fr; gap: 36px; }
+  section { padding: 64px 0; }
+  .cell-img img { height: auto; max-height: 420px; object-fit: contain; background: var(--bg-3); padding: 12px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#"><img src="assets/icon.png" alt="" width="28" height="28">PassportSheet</a>
+    <a class="gh" href="https://github.com/RyanJ-png/PassportSheet">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      GitHub
+    </a>
+  </div>
+</header>
+
+<main>
+  <div class="hero wrap">
+    <div class="hero-grid">
+      <div>
+        <h1 class="reveal">Passport photos that pass<span class="tick">.</span></h1>
+        <p class="sub reveal">A free, open-source Windows app that turns any photo into a print-ready sheet matched to your country's official rules.</p>
+        <div class="cta-row reveal">
+          <a class="btn btn-primary" href="https://github.com/RyanJ-png/PassportSheet/releases/latest">Download for Windows</a>
+          <a class="btn btn-ghost" href="https://github.com/RyanJ-png/PassportSheet">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+            GitHub
+          </a>
+        </div>
+      </div>
+      <figure class="shot reveal">
+        <img src="assets/editor.webp" width="1925" height="1400" fetchpriority="high"
+             alt="PassportSheet editor with a photo auto-fitted to the Canadian 50 by 70 mm spec, crown and chin guides overlaid">
+      </figure>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap how">
+      <div class="reveal">
+        <h2>From any photo to a printed sheet</h2>
+        <p class="lede">Load a picture, pick a country, and the app handles the technical part. Fine-tune with guides that show what the spec wants.</p>
+      </div>
+      <div class="steps">
+        <div class="step reveal">
+          <span class="n">1</span>
+          <div><h3>Load</h3><p>Open a file, drag one in, or paste from the clipboard with Ctrl+V.</p></div>
+        </div>
+        <div class="step reveal">
+          <span class="n">2</span>
+          <div><h3>Auto-fit</h3><p>Face detection levels the eye line, removes the background, and scales the head to the country's required size.</p></div>
+        </div>
+        <div class="step reveal">
+          <span class="n">3</span>
+          <div><h3>Export</h3><p>Preview the exact sheet before saving at 300 DPI, or export a single 600 DPI photo for online forms.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="reveal">
+        <h2>A live answer to "will this be accepted?"</h2>
+        <p class="lede">As you drag and zoom, the readout re-measures head height, crown gap, and centering against the selected country, and warns when print resolution drops too low.</p>
+      </div>
+      <div class="strip reveal">
+        <img src="assets/compliance.webp" width="1350" height="100" loading="lazy"
+             alt="Status bar readout: head 33.5 mm pass, crown gap 10.0 mm pass, low resolution warning at about 122 DPI print">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="reveal">Built for the printer and the portal</h2>
+      <div class="bento">
+        <figure class="cell cell-img reveal">
+          <img src="assets/preview.webp" width="784" height="1253" loading="lazy"
+               alt="Sheet preview dialog showing two Canadian passport photos tiled on 10 by 15 centimeter paper with cut lines">
+          <figcaption>
+            <h3>Print-ready sheets</h3>
+            <p>Tiled for 10x15, 13x18, A4, or US Letter paper, with cut lines between photos.</p>
+          </figcaption>
+        </figure>
+        <div class="col">
+          <div class="cell cell-text cell-tint reveal">
+            <h3>Nothing leaves your computer</h3>
+            <p>Face detection and background removal run locally with bundled models. No uploads, no account, no service that sees your face.</p>
+          </div>
+          <div class="cell cell-text reveal">
+            <h3>One photo at 600 DPI</h3>
+            <p>Online application portals want a single file at exact pixel dimensions. Export one photo instead of a sheet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2 class="reveal">14 countries built in</h2>
+      <div class="pills reveal">
+        <span class="pill">Israel</span><span class="pill">United States</span><span class="pill">United Kingdom</span><span class="pill">EU / Schengen</span><span class="pill">India</span><span class="pill">Canada</span><span class="pill">China</span><span class="pill">Thailand</span><span class="pill">Austria</span><span class="pill">France</span><span class="pill">Germany</span><span class="pill">Japan</span><span class="pill">Australia</span><span class="pill">Philippines</span>
+      </div>
+      <p class="note reveal">Every spec lives in a plain <code>requirements.json</code> file: head size band, crown margin, background color. Add a country or adjust one in a text editor, no rebuild needed. Verify against the official source before you print.</p>
+    </div>
+  </section>
+
+  <section class="closing">
+    <div class="wrap">
+      <h2 class="reveal">Skip the photo booth.</h2>
+      <div class="reveal">
+        <a class="btn btn-primary" href="https://github.com/RyanJ-png/PassportSheet/releases/latest">Download for Windows</a>
+        <p class="req">Windows 10 or 11, 64-bit. 287 MB zip with the detection models included. Unzip and run.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span>MIT licensed. Built with PySide6, OpenCV, and u2net.</span>
+    <nav>
+      <a href="https://github.com/RyanJ-png/PassportSheet">GitHub</a>
+      <a href="https://github.com/RyanJ-png/PassportSheet/issues">Report an issue</a>
+      <a href="https://github.com/RyanJ-png/PassportSheet/blob/main/LICENSE">License</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+document.documentElement.classList.add("js");
+if (!matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+    }
+  }, { threshold: 0.15 });
+  document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+  // Failsafe: never leave content hidden if the observer can't run
+  // (background tab, exotic embedder). Reveals everything above the fold
+  // late rather than never; below-fold elements still reveal on scroll.
+  setTimeout(() => {
+    document.querySelectorAll(".reveal:not(.in)").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.top < innerHeight && r.bottom > 0) el.classList.add("in");
+    });
+  }, 1500);
+} else {
+  document.querySelectorAll(".reveal").forEach((el) => el.classList.add("in"));
+}
+</script>
+</body>
+</html>
