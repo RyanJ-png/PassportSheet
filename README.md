@@ -43,6 +43,7 @@ app/fine_tune.py        interactive editor (drag/zoom/rotate + guide overlays)
 app/main_window.py      UI wiring, worker thread, export
 app/sheet.py            tiling + cut lines
 requirements.json       per-country photo specs (user-editable)
+assets/                 app icon
 download_models.py      one-time model fetch (checksum-verified)
 PassportSheet.spec      PyInstaller build config
 tests/                  pytest suite (pure functions — no Qt or models needed)

@@ -6,6 +6,7 @@ from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 datas = [
     ("requirements.json", "."),
+    ("assets/icon.ico", "assets"),
     ("models/face_detection_yunet_2023mar.onnx", "models"),
     ("models/u2net.onnx", "models"),
 ]
@@ -41,6 +42,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,           # windowed app — stdout guard in main.py handles this
+    icon="assets/icon.ico",
 )
 coll = COLLECT(
     exe,

@@ -12,10 +12,22 @@ if sys.stderr is None:
     sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 def main() -> int:
+    from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication, QMessageBox
+
+    if sys.platform == "win32":
+        # Give the process its own taskbar identity so the window icon is
+        # used there too (instead of the python.exe / launcher icon).
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "PassportSheet")
 
     app = QApplication(sys.argv)
     app.setApplicationName("PassportSheet")
+    from app.specs import resource_path
+    icon_path = resource_path(os.path.join("assets", "icon.ico"))
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     try:
         from app.main_window import MainWindow
         win = MainWindow()

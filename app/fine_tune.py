@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from PIL import Image
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap, QTransform
+from PySide6.QtGui import (
+    QColor, QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QTransform,
+)
 from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsView
 
 from .processing import AutoFit
@@ -46,6 +48,7 @@ class PhotoEditor(QGraphicsView):
                             | QPainter.RenderHint.SmoothPixmapTransform)
         self.setBackgroundBrush(QColor("#2b2b2b"))
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         self._item: QGraphicsPixmapItem | None = None
         self._spec: CountrySpec | None = None
@@ -53,6 +56,7 @@ class PhotoEditor(QGraphicsView):
         self._rotation = 0.0
         self._dragging = False
         self._last_pos = QPointF()
+        self._busy = False
 
     # ------------------------------------------------------------------ setup
 
@@ -78,6 +82,11 @@ class PhotoEditor(QGraphicsView):
 
     def has_image(self) -> bool:
         return self._item is not None
+
+    def set_busy(self, busy: bool) -> None:
+        """Dim the view and block input while the pipeline runs."""
+        self._busy = busy
+        self.viewport().update()
 
     # ------------------------------------------------------------ transforms
 
@@ -172,7 +181,8 @@ class PhotoEditor(QGraphicsView):
     # ----------------------------------------------------------------- input
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self._item is not None:
+        if (event.button() == Qt.MouseButton.LeftButton
+                and self._item is not None and not self._busy):
             self._dragging = True
             self._last_pos = self.mapToScene(event.position().toPoint())
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
@@ -193,11 +203,26 @@ class PhotoEditor(QGraphicsView):
         super().mouseReleaseEvent(event)
 
     def wheelEvent(self, event):
-        if self._item is None:
+        if self._item is None or self._busy:
             return
         steps = event.angleDelta().y() / 120.0
         anchor = self.mapToScene(event.position().toPoint())
         self.set_zoom(self._scale * (1.1 ** steps), anchor)  # emits transformChanged
+
+    # 1 scene unit = 0.1 mm on the printed photo; Shift steps a full mm.
+    _NUDGE = {Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0),
+              Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1)}
+
+    def keyPressEvent(self, event):
+        step = self._NUDGE.get(event.key())
+        if step is None or self._item is None or self._busy:
+            super().keyPressEvent(event)
+            return
+        units = 10.0 if event.modifiers() & Qt.KeyboardModifier.ShiftModifier else 1.0
+        self._item.setPos(self._item.pos()
+                          + QPointF(step[0] * units, step[1] * units))
+        self.viewport().update()
+        self.transformChanged.emit()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -209,6 +234,32 @@ class PhotoEditor(QGraphicsView):
                            Qt.AspectRatioMode.KeepAspectRatio)
 
     # ---------------------------------------------------------------- guides
+
+    def drawBackground(self, painter: QPainter, rect: QRectF) -> None:
+        super().drawBackground(painter, rect)
+        # Fill the photo frame with the spec's background color so any area
+        # the photo doesn't cover previews exactly what export will produce
+        # (render_photo fills with the same color).
+        if self._spec is None:
+            return
+        fill = QRectF(self._scene.sceneRect()).intersected(rect)
+        if fill.isValid():
+            painter.fillRect(fill, QColor(*self._spec.background_rgb()))
+
+    @staticmethod
+    def _draw_label(painter: QPainter, pos: QPointF, text: str,
+                    color: QColor) -> None:
+        """Guide label with a dark halo so it stays readable on any photo."""
+        path = QPainterPath()
+        path.addText(pos, painter.font(), text)
+        painter.save()
+        painter.setPen(QPen(QColor(0, 0, 0, 170), 3))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(path)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        painter.drawPath(path)
+        painter.restore()
 
     def drawForeground(self, painter: QPainter, rect: QRectF) -> None:
         if self._spec is None:
@@ -258,10 +309,24 @@ class PhotoEditor(QGraphicsView):
         painter.drawLine(QPointF(cx, sr.top()), QPointF(cx, sr.bottom()))
 
         # Labels.
-        painter.setPen(QColor("#00d0ff"))
-        painter.drawText(QPointF(sr.left() + 6, crown_y - 5), "crown")
-        painter.setPen(QColor("#00dc5a"))
-        painter.drawText(QPointF(sr.left() + 6, chin_max_y + 16), "chin zone")
+        self._draw_label(painter, QPointF(sr.left() + 6, crown_y - 5),
+                         "crown", QColor("#00d0ff"))
+        self._draw_label(painter, QPointF(sr.left() + 6, chin_max_y + 16),
+                         "chin zone", QColor("#00dc5a"))
+
+        # Busy overlay: dim the whole viewport while the pipeline runs.
+        if self._busy:
+            painter.save()
+            painter.resetTransform()
+            vp = self.viewport().rect()
+            painter.fillRect(vp, QColor(0, 0, 0, 130))
+            font = QFont(painter.font())
+            font.setPointSizeF(12.0)
+            painter.setFont(font)
+            painter.setPen(QColor("#e0e0e0"))
+            painter.drawText(vp, Qt.AlignmentFlag.AlignCenter,
+                             "Processing photo…")
+            painter.restore()
 
     # ---------------------------------------------------------------- export
 
